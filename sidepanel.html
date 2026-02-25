@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>SideBarny LLM - Бічна панель</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header id="toolbar">
+    <div class="toolbar-shell">
+      <div class="toolbar-top">
+        <select id="providerSelect" aria-label="Провайдер"></select>
+        <a id="openExternalLink" href="#" target="_blank" rel="noopener noreferrer">Відкрити у вкладці</a>
+      </div>
+
+      <div class="toolbar-actions">
+        <button id="pickTextBtn" type="button">
+          <span class="btn-icon btn-icon-text" aria-hidden="true">T</span>
+          <span>Вибрати текст</span>
+        </button>
+        <button id="pickHtmlBtn" type="button">
+          <span class="btn-icon btn-icon-html" aria-hidden="true">&lt;/&gt;</span>
+          <span>Вибрати HTML</span>
+        </button>
+        <button id="cancelPickerBtn" type="button" hidden>Скасувати</button>
+      </div>
+
+      <div id="statusText" class="status-text" role="status" aria-live="polite" hidden></div>
+    </div>
+  </header>
+
+  <iframe
+    id="providerFrame"
+    title="Чат SideBarny LLM"
+    src="about:blank"
+    sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-storage-access-by-user-activation allow-top-navigation-by-user-activation"
+    allow="clipboard-read; clipboard-write"
+  ></iframe>
+
+  <div id="copyTooltip" role="status" aria-live="polite" hidden>Скопійовано контекст</div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

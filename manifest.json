@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "SideBarny LLM",
+  "version": "1.1.0",
+  "description": "Бічна панель Chrome для роботи з кількома LLM та швидкого захоплення тексту/HTML",
+  "permissions": [
+    "sidePanel",
+    "declarativeNetRequest",
+    "scripting",
+    "tabs",
+    "activeTab",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_title": "Відкрити SideBarny LLM",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_1",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
