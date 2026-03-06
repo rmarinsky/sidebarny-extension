@@ -7,7 +7,7 @@
     "sidePanel",
     "declarativeNetRequest",
     "scripting",
-    "tabs",
+
     "activeTab",
     "clipboardWrite"
   ],
