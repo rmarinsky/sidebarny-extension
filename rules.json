@@ -138,7 +138,7 @@
     }
   },
   {
-    "id": 8,
+    "id": 7,
     "priority": 1,
     "action": {
       "type": "modifyHeaders",
@@ -161,7 +161,7 @@
     }
   },
   {
-    "id": 9,
+    "id": 8,
     "priority": 1,
     "action": {
       "type": "modifyHeaders",

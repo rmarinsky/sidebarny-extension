@@ -52,12 +52,14 @@
 
 Дані користувача не відправляються на окремий бекенд розширення. Захоплений контент обробляється локально та вставляється в чат або копіюється у буфер обміну.
 
+Вихідний код: https://github.com/rmarinsky/sidebarny-extension
+
 ## Про автора
 
-**Роман Маринський**
+**Роман Марінський**
 
 - QA/Test Automation Expert та macOS розробник
-- 11+ років у QA
+- 12+ років у QA
 - Key Expert @ Intellias QA CoE
 - GitHub: [rmarinsky](https://github.com/rmarinsky)
 - Сайт: [mnfaktr.com](https://mnfaktr.com)

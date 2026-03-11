@@ -203,7 +203,10 @@
       return {success: true, method: 'execCommand'};
     }
 
-    if (insertTextViaPasteEvent(element, text)) {
+    const contentBefore = element.textContent || '';
+    insertTextViaPasteEvent(element, text);
+    const contentAfter = element.textContent || '';
+    if (contentAfter !== contentBefore) {
       return {success: true, method: 'pasteEvent'};
     }
 
