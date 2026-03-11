@@ -85,7 +85,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "*://copilot.microsoft.com/*",
+      "urlFilter": "*://rovo-extension-web.atlassian.com/*",
       "resourceTypes": [
         "sub_frame"
       ]
@@ -108,7 +108,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "*://grok.com/*",
+      "urlFilter": "*://copilot.microsoft.com/*",
       "resourceTypes": [
         "sub_frame"
       ]
@@ -131,7 +131,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "*://t3.chat/*",
+      "urlFilter": "*://grok.com/*",
       "resourceTypes": [
         "sub_frame"
       ]
