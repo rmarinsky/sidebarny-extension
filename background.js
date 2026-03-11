@@ -5,6 +5,14 @@
 const DEBUG = false;
 let hasActionClickFallback = false;
 
+self.addEventListener('error', (event) => {
+  console.error('[SideBarny] Uncaught error in service worker:', event.error);
+});
+
+self.addEventListener('unhandledrejection', (event) => {
+  console.error('[SideBarny] Unhandled promise rejection:', event.reason);
+});
+
 chrome.runtime.onInstalled.addListener(() => {
   debugLog('розширення встановлено або оновлено');
   void configureSidePanelBehavior();

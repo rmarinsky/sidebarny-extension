@@ -8,15 +8,23 @@ const PROVIDERS = Object.freeze([
   {id: 'chatgpt', name: 'OpenAI ChatGPT', url: 'https://chatgpt.com/'},
   {id: 'claude', name: 'Anthropic Claude', url: 'https://claude.ai/'},
   {id: 'gemini', name: 'Google Gemini', url: 'https://gemini.google.com/'},
+  {id: 'rovo', name: 'Atlassian Rovo', url: 'https://rovo-extension-web.atlassian.com/extension/rovo-chat'},
   {id: 'copilot', name: 'Microsoft Copilot', url: 'https://copilot.microsoft.com/'},
   {id: 'grok', name: 'xAI Grok', url: 'https://grok.com/'},
-  {id: 't3', name: 't3.chat', url: 'https://t3.chat/'},
+
   {id: 'poe', name: 'Poe', url: 'https://poe.com/'},
   {id: 'huggingchat', name: 'HuggingChat', url: 'https://huggingface.co/chat'}
 ]);
 const PROVIDER_BY_ID = new Map(PROVIDERS.map((provider) => [provider.id, provider]));
 const SELECTED_PROVIDER_KEY = 'selectedProviderId';
 const COPY_MAX_LENGTH = 100000;
+const PASTE_ACTION = 'sidebarny:pasteToChat';
+const PASTE_RESULT_ACTION = 'sidebarny:pasteToChatResult';
+const GET_URL_ACTION = 'sidebarny:getCurrentUrl';
+const GET_URL_RESULT_ACTION = 'sidebarny:getCurrentUrlResult';
+const PASTE_TIMEOUT_MS = 2000;
+const GET_URL_TIMEOUT_MS = 500;
+const AUTO_PASTE_PROVIDERS = new Set(PROVIDERS.map((p) => p.id));
 
 let providerSelect = null;
 let providerFrame = null;
@@ -70,10 +78,12 @@ function init() {
 
   renderProviderOptions();
 
-  const savedProviderId = localStorage.getItem(SELECTED_PROVIDER_KEY);
-  const defaultProvider = getProviderById(savedProviderId) || PROVIDERS[0];
-  providerSelect.value = defaultProvider.id;
-  loadProvider(defaultProvider.id);
+  chrome.storage.local.get(SELECTED_PROVIDER_KEY, (result) => {
+    const savedProviderId = result[SELECTED_PROVIDER_KEY];
+    const defaultProvider = getProviderById(savedProviderId) || PROVIDERS[0];
+    providerSelect.value = defaultProvider.id;
+    loadProvider(defaultProvider.id);
+  });
 
   providerSelect.addEventListener('change', () => {
     loadProvider(providerSelect.value);
@@ -89,6 +99,11 @@ function init() {
 
   cancelPickerBtn.addEventListener('click', () => {
     void cancelElementPicker();
+  });
+
+  openExternalLink.addEventListener('click', (event) => {
+    event.preventDefault();
+    void openProviderInTab();
   });
 }
 
@@ -109,15 +124,11 @@ function loadProvider(providerId) {
     return;
   }
 
-  localStorage.setItem(SELECTED_PROVIDER_KEY, provider.id);
+  chrome.storage.local.set({[SELECTED_PROVIDER_KEY]: provider.id});
   applyProviderTheme(provider.id);
   providerFrame.src = provider.url;
+  providerFrame.title = `Чат — ${provider.name}`;
   openExternalLink.href = provider.url;
-
-  if (provider.id === 't3') {
-    setStatus('t3.chat може не працювати в iframe через ізоляцію auth/storage. Використай "Відкрити у вкладці", якщо зʼявиться помилка Convex.');
-    return;
-  }
 
   setStatus('');
 }
@@ -201,6 +212,13 @@ async function startElementPicker(tabId, outputType) {
     throw new Error(outputType === 'html' ? 'У вибраному елементі немає HTML.' : 'У вибраному елементі немає видимого тексту.');
   }
 
+  const pasted = await pasteToProviderChat(latestCapturedContent);
+  if (pasted) {
+    showCopyTooltip(outputType === 'html' ? 'Вставлено HTML в чат' : 'Вставлено в чат');
+    setStatus(outputType === 'html' ? 'HTML вставлено в чат провайдера.' : 'Контент вставлено в чат провайдера.');
+    return;
+  }
+
   const copiedInPage = Boolean(response?.payload?.copied);
   const copiedInPanel = await copyContentToClipboard(latestCapturedContent, {
     tooltipMessage: outputType === 'html' ? 'Скопійовано HTML' : 'Скопійовано контекст',
@@ -217,7 +235,9 @@ async function startElementPicker(tabId, outputType) {
     return;
   }
 
-  setStatus(outputType === 'html' ? 'HTML скопійовано в буфер обміну.' : 'Контент скопійовано в буфер обміну.');
+  setStatus(outputType === 'html'
+    ? 'HTML скопійовано в буфер обміну. Натисни Ctrl+V для вставки.'
+    : 'Контент скопійовано в буфер обміну. Натисни Ctrl+V для вставки.');
 }
 
 async function cancelElementPicker() {
@@ -239,6 +259,24 @@ async function cancelElementPicker() {
   }
 }
 
+async function ensureScriptingPermission() {
+  const granted = await chrome.permissions.contains({
+    permissions: ['scripting'],
+    origins: ['<all_urls>']
+  });
+  if (granted) {
+    return;
+  }
+
+  const accepted = await chrome.permissions.request({
+    permissions: ['scripting'],
+    origins: ['<all_urls>']
+  });
+  if (!accepted) {
+    throw new Error('Для захоплення контенту потрібен дозвіл на доступ до сторінки.');
+  }
+}
+
 async function ensureContextScript(tabId) {
   try {
     await chrome.tabs.sendMessage(tabId, {action: 'ping'});
@@ -247,13 +285,22 @@ async function ensureContextScript(tabId) {
     debugLog('ping content script не вдався, виконується інʼєкція', error?.message || error);
   }
 
+  await ensureScriptingPermission();
+
   try {
     await chrome.scripting.executeScript({
       target: {tabId},
       files: ['content.js']
     });
   } catch (error) {
-    throw new Error(error?.message || 'Не вдалося підʼєднати content script на цій сторінці.');
+    const message = error?.message || '';
+    if (message.includes('Cannot access a chrome://') || message.includes('Cannot access a chrome-')) {
+      throw new Error('Неможливо захопити контент із внутрішніх сторінок браузера.');
+    }
+    if (message.includes('Cannot access contents of the page')) {
+      throw new Error('Ця сторінка не дозволяє захоплення контенту. Спробуй іншу сторінку.');
+    }
+    throw new Error(message || 'Не вдалося підʼєднати content script на цій сторінці.');
   }
 }
 
@@ -385,9 +432,142 @@ function setStatus(message, isError = false) {
   }, isError ? 6000 : 3500);
 }
 
+async function openProviderInTab() {
+  const provider = getProviderById(providerSelect?.value);
+  if (!provider?.url) {
+    return;
+  }
+
+  const iframeUrl = await getIframeCurrentUrl(provider);
+  window.open(iframeUrl || provider.url, '_blank');
+}
+
+function getIframeCurrentUrl(provider) {
+  if (!AUTO_PASTE_PROVIDERS.has(provider?.id)) {
+    return Promise.resolve(null);
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const timeoutId = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      window.removeEventListener('message', onMessage);
+      resolve(null);
+    }, GET_URL_TIMEOUT_MS);
+
+    function onMessage(event) {
+      if (!isProviderOrigin(event.origin, provider)) {
+        return;
+      }
+      if (event.data?.action !== GET_URL_RESULT_ACTION) {
+        return;
+      }
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeoutId);
+      window.removeEventListener('message', onMessage);
+      resolve(typeof event.data?.url === 'string' ? event.data.url : null);
+    }
+
+    window.addEventListener('message', onMessage);
+
+    try {
+      providerFrame.contentWindow.postMessage(
+        {action: GET_URL_ACTION},
+        provider.url
+      );
+    } catch {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        window.removeEventListener('message', onMessage);
+        resolve(null);
+      }
+    }
+  });
+}
+
+function pasteToProviderChat(text) {
+  const currentProviderId = providerSelect?.value;
+  if (!AUTO_PASTE_PROVIDERS.has(currentProviderId)) {
+    debugLog('авто-вставка не підтримується для', currentProviderId);
+    return Promise.resolve(false);
+  }
+
+  const provider = getProviderById(currentProviderId);
+  if (!provider?.url) {
+    return Promise.resolve(false);
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const timeoutId = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      window.removeEventListener('message', onMessage);
+      debugLog('авто-вставка: таймаут');
+      resolve(false);
+    }, PASTE_TIMEOUT_MS);
+
+    function onMessage(event) {
+      if (!isProviderOrigin(event.origin, provider)) {
+        return;
+      }
+      if (event.data?.action !== PASTE_RESULT_ACTION) {
+        return;
+      }
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeoutId);
+      window.removeEventListener('message', onMessage);
+      debugLog('авто-вставка: результат', event.data);
+      resolve(Boolean(event.data?.success));
+    }
+
+    window.addEventListener('message', onMessage);
+
+    try {
+      providerFrame.contentWindow.postMessage(
+        {action: PASTE_ACTION, text},
+        provider.url
+      );
+    } catch (error) {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeoutId);
+        window.removeEventListener('message', onMessage);
+        debugLog('авто-вставка: помилка postMessage', error);
+        resolve(false);
+      }
+    }
+  });
+}
+
 function getProviderById(providerId) {
   if (!providerId) {
     return null;
   }
   return PROVIDER_BY_ID.get(providerId) || null;
+}
+
+function isProviderOrigin(origin, provider) {
+  if (!origin || !provider?.url) {
+    return false;
+  }
+  try {
+    return new URL(provider.url).origin === origin;
+  } catch {
+    return false;
+  }
 }

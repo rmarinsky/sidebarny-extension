@@ -1,17 +1,18 @@
 {
   "manifest_version": 3,
   "name": "SideBarny LLM",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Бічна панель Chrome для роботи з кількома LLM та швидкого захоплення тексту/HTML",
   "permissions": [
     "sidePanel",
     "declarativeNetRequest",
-    "scripting",
-
-    "activeTab",
-    "clipboardWrite"
+    "storage",
+    "activeTab"
   ],
-  "host_permissions": [
+  "optional_permissions": [
+    "scripting"
+  ],
+  "optional_host_permissions": [
     "<all_urls>"
   ],
   "action": {
@@ -37,6 +38,23 @@
       }
     ]
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://chatgpt.com/*",
+        "*://claude.ai/*",
+        "*://gemini.google.com/*",
+        "*://copilot.microsoft.com/*",
+        "*://grok.com/*",
+        "*://poe.com/*",
+        "*://huggingface.co/*",
+        "*://rovo-extension-web.atlassian.com/*"
+      ],
+      "js": ["chat-input-injector.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

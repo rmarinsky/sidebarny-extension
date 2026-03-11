@@ -284,8 +284,55 @@ if (!window.__llmSidebarContentLoaded) {
     overlay.style.height = `${Math.max(rect.height, 1)}px`;
   }
 
+  function extractAriaText(element) {
+    const parts = [];
+    const seen = new Set();
+
+    function addUnique(value) {
+      const trimmed = (value || '').trim();
+      if (trimmed && !seen.has(trimmed)) {
+        seen.add(trimmed);
+        parts.push(trimmed);
+      }
+    }
+
+    addUnique(element.getAttribute('aria-label'));
+
+    const labelledBy = element.getAttribute('aria-labelledby');
+    if (labelledBy) {
+      for (const id of labelledBy.split(/\s+/)) {
+        const el = document.getElementById(id);
+        if (el) {
+          addUnique(el.textContent);
+        }
+      }
+    }
+
+    const describedBy = element.getAttribute('aria-describedby');
+    if (describedBy) {
+      for (const id of describedBy.split(/\s+/)) {
+        const el = document.getElementById(id);
+        if (el) {
+          addUnique(el.textContent);
+        }
+      }
+    }
+
+    addUnique(element.getAttribute('aria-valuetext'));
+    addUnique(element.getAttribute('aria-placeholder'));
+    addUnique(element.getAttribute('title'));
+    addUnique(element.getAttribute('alt'));
+
+    return parts.join(' ');
+  }
+
   function buildElementContext(element) {
-    const text = formatRenderedText(element.innerText || element.textContent || '').slice(0, MAX_CONTEXT_LENGTH);
+    let text = formatRenderedText(element.innerText || element.textContent || '').slice(0, MAX_CONTEXT_LENGTH);
+
+    if (!text.trim()) {
+      text = extractAriaText(element).slice(0, MAX_CONTEXT_LENGTH);
+    }
+
     const html = trimToLimit(element.outerHTML || '', MAX_HTML_LENGTH);
 
     return {
@@ -532,80 +579,13 @@ if (!window.__llmSidebarContentLoaded) {
   }
 
   function handleParsePageRequest() {
-    const isOpenSearchDashboard = detectOpenSearchDashboardPage();
-
-    if (isOpenSearchDashboard) {
-      const pageContent = parseOpenSearchDashboardPage();
+    if (typeof detectOpenSearchDashboardPage === 'function' && detectOpenSearchDashboardPage()) {
+      const pageContent = parseOpenSearchDashboard();
       return {success: true, content: pageContent, type: 'opensearch-dashboard'};
     }
 
     const pageContent = parsePageContent();
     return {success: true, content: pageContent, type: 'general'};
-  }
-
-  function detectOpenSearchDashboardPage() {
-    const url = window.location.href;
-    const opensearchPatterns = [/opensearch/i, /kibana/i, /_dashboards/i];
-
-    const matchesUrl = opensearchPatterns.some((pattern) => pattern.test(url));
-    if (!matchesUrl) {
-      return false;
-    }
-
-    const opensearchSelectors = [
-      'table[data-test-subj="docTable"]',
-      '[data-test-subj="osdDocTableCellDataField"]'
-    ];
-
-    return opensearchSelectors.some((selector) => document.querySelector(selector) !== null);
-  }
-
-  function parseOpenSearchDashboardPage() {
-    if (typeof parseOpenSearchDashboard === 'function') {
-      return parseOpenSearchDashboard();
-    }
-
-    try {
-      const rows = document.querySelectorAll('table[data-test-subj="docTable"] tbody tr');
-      const logData = [];
-
-      rows.forEach((row, index) => {
-        const timeEl = row.querySelector('td:nth-child(2) [data-test-subj="osdDocTableCellDataField"] span');
-        const payloadLevelEl = row.querySelector('td:nth-child(3) [data-test-subj="osdDocTableCellDataField"] span');
-        const messageEl = row.querySelector('td:nth-child(4) [data-test-subj="osdDocTableCellDataField"] span');
-        const payloadMessageEl = row.querySelector(
-          'td:nth-child(5) [data-test-subj="osdDocTableCellDataField"] span'
-        );
-
-        const time = timeEl ? timeEl.textContent.trim() : null;
-        const payloadLevel = payloadLevelEl ? payloadLevelEl.textContent.trim() : null;
-        const message = messageEl ? messageEl.textContent.trim() : null;
-        const payloadMessage = payloadMessageEl ? payloadMessageEl.textContent.trim() : null;
-
-        if (time || payloadLevel || message || payloadMessage) {
-          logData.push({
-            rowIndex: index + 1,
-            time,
-            payloadLevel,
-            message,
-            payloadMessage
-          });
-        }
-      });
-
-      return {
-        url: window.location.href,
-        timestamp: new Date().toISOString(),
-        totalRows: logData.length,
-        logData
-      };
-    } catch (error) {
-      return {
-        error: error?.message || 'Помилка парсингу OpenSearch Dashboard.',
-        url: window.location.href,
-        timestamp: new Date().toISOString()
-      };
-    }
   }
 
   function parsePageContent() {

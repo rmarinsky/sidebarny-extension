@@ -50,6 +50,13 @@
   --focus-ring: rgba(145, 145, 145, 0.38);
 }
 
+:root[data-provider="rovo"] {
+  --surface: rgba(29, 33, 37, 0.62);
+  --control-bg: rgba(96, 99, 102, 0.78);
+  --control-hover: rgba(119, 122, 125, 0.88);
+  --focus-ring: rgba(76, 154, 255, 0.38);
+}
+
 :root[data-provider="copilot"] {
   --surface: rgba(21, 26, 41, 0.62);
   --control-bg: rgba(91, 95, 105, 0.78);
@@ -62,13 +69,6 @@
   --control-bg: rgba(80, 80, 80, 0.78);
   --control-hover: rgba(105, 105, 105, 0.88);
   --focus-ring: rgba(140, 140, 140, 0.38);
-}
-
-:root[data-provider="t3"] {
-  --surface: rgba(33, 29, 38, 0.62);
-  --control-bg: rgba(100, 97, 103, 0.78);
-  --control-hover: rgba(122, 119, 125, 0.88);
-  --focus-ring: rgba(160, 152, 175, 0.38);
 }
 
 :root[data-provider="poe"] {
@@ -277,7 +277,7 @@ body {
 }
 
 .status-text.error {
-  color: #d86f6f;
+  color: #e57373;
 }
 
 #providerFrame {
@@ -304,6 +304,12 @@ body {
   font-size: 12px;
   font-weight: 600;
   padding: 8px 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+  }
 }
 
 @media (max-width: 420px) {
