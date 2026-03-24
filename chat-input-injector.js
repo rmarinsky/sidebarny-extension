@@ -276,8 +276,16 @@
     }
 
     const result = handlePasteRequest(text);
-    sendResult(event.origin, result);
+    waitForPaint(() => sendResult(event.origin, result));
   });
+
+  function waitForPaint(callback) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        callback();
+      });
+    });
+  }
 
   function sendResult(targetOrigin, result) {
     try {
