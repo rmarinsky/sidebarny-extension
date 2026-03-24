@@ -267,6 +267,8 @@ async function startElementPicker(tabId, outputType) {
     throw new Error(response?.error || 'Помилка захоплення елемента.');
   }
 
+  setStatus('Обробка контенту…', false, true);
+
   latestCapturedContent = trimToLimit(
     outputType === 'html' ? response?.payload?.html || '' : response?.payload?.text || '',
     COPY_MAX_LENGTH
@@ -276,12 +278,16 @@ async function startElementPicker(tabId, outputType) {
     throw new Error(outputType === 'html' ? 'У вибраному елементі немає HTML.' : 'У вибраному елементі немає видимого тексту.');
   }
 
+  setStatus('Вставка в чат провайдера…', false, true);
+
   const pasted = await pasteToProviderChat(latestCapturedContent);
   if (pasted) {
     showCopyTooltip(outputType === 'html' ? 'Вставлено HTML в чат' : 'Вставлено в чат');
     setStatus(outputType === 'html' ? 'HTML вставлено в чат провайдера.' : 'Контент вставлено в чат провайдера.');
     return;
   }
+
+  setStatus('Копіювання в буфер обміну…', false, true);
 
   const copiedInPage = Boolean(response?.payload?.copied);
   const copiedInPanel = await copyContentToClipboard(latestCapturedContent, {
@@ -469,7 +475,7 @@ function showCopyTooltip(message) {
   }, 1500);
 }
 
-function setStatus(message, isError = false) {
+function setStatus(message, isError = false, isProcessing = false) {
   if (statusTimer) {
     clearTimeout(statusTimer);
     statusTimer = null;
@@ -477,16 +483,20 @@ function setStatus(message, isError = false) {
 
   if (!message) {
     statusText.hidden = true;
-    statusText.textContent = '';
+    statusText.innerHTML = '';
     statusText.classList.remove('error');
     return;
   }
 
-  statusText.textContent = message;
+  if (isProcessing) {
+    statusText.innerHTML = `<span class="status-spinner"></span><span>${escapeHtml(message)}</span>`;
+  } else {
+    statusText.textContent = message;
+  }
   statusText.hidden = false;
   statusText.classList.toggle('error', Boolean(isError));
 
-  if (isElementPickerActive) {
+  if (isElementPickerActive || isProcessing) {
     return;
   }
 
@@ -494,6 +504,12 @@ function setStatus(message, isError = false) {
     statusText.hidden = true;
     statusTimer = null;
   }, isError ? 6000 : 3500);
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 async function openProviderInTab() {
