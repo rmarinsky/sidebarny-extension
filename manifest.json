@@ -1,13 +1,23 @@
 {
   "manifest_version": 3,
   "name": "SideBarny LLM",
-  "version": "1.2.0",
-  "description": "Бічна панель Chrome для роботи з кількома LLM та швидкого захоплення тексту/HTML",
+  "version": "1.2.1",
+  "description": "Side panel with LLMs: capture text/HTML, parse LinkedIn comments | Бічна панель з LLM: захоплення тексту/HTML, парсинг коментарів",
   "permissions": [
     "sidePanel",
     "declarativeNetRequest",
     "storage",
     "activeTab"
+  ],
+  "host_permissions": [
+    "*://chatgpt.com/*",
+    "*://claude.ai/*",
+    "*://gemini.google.com/*",
+    "*://copilot.microsoft.com/*",
+    "*://grok.com/*",
+    "*://poe.com/*",
+    "*://huggingface.co/*",
+    "*://rovo-extension-web.atlassian.com/*"
   ],
   "optional_permissions": [
     "scripting"

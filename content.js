@@ -247,9 +247,10 @@ if (!window.__llmSidebarContentLoaded) {
 
   function buildPickerPayload(context, outputType, copyResult) {
     const key = outputType === 'html' ? 'html' : 'text';
+    const value = context[key] || context.text;
 
     return {
-      [key]: context[key],
+      [key]: value,
       copied: Boolean(copyResult?.success),
       copyMethod: copyResult?.method || null,
       copyError: copyResult?.error || null
@@ -267,7 +268,29 @@ if (!window.__llmSidebarContentLoaded) {
     if (target === document.documentElement) {
       return document.body;
     }
+    return snapToSmartTarget(target);
+  }
+
+  function snapToSmartTarget(target) {
+    const linkedInComment = snapToLinkedInComment(target);
+    if (linkedInComment) return linkedInComment;
     return target;
+  }
+
+  function snapToLinkedInComment(element) {
+    if (!window.location.hostname.includes('linkedin.com')) return null;
+
+    const parentArticle = element.closest('article.comments-comment-entity:not(.comments-comment-entity--reply)');
+    if (parentArticle) return parentArticle;
+
+    const replyArticle = element.closest('article.comments-comment-entity--reply');
+    if (replyArticle) {
+      const parent = replyArticle.closest('article.comments-comment-entity:not(.comments-comment-entity--reply)');
+      if (parent) return parent;
+      return replyArticle;
+    }
+
+    return null;
   }
 
   function renderHighlight(element, overlay) {
@@ -327,6 +350,20 @@ if (!window.__llmSidebarContentLoaded) {
   }
 
   function buildElementContext(element) {
+    const linkedInText = tryParseLinkedInComments(element);
+    if (linkedInText) {
+      return {
+        mode: 'element',
+        title: document.title,
+        url: window.location.href,
+        timestamp: new Date().toISOString(),
+        selector: buildCssSelector(element),
+        tagName: element.tagName.toLowerCase(),
+        text: linkedInText.slice(0, MAX_CONTEXT_LENGTH),
+        html: trimToLimit(element.outerHTML || '', MAX_HTML_LENGTH)
+      };
+    }
+
     let text = formatRenderedText(element.innerText || element.textContent || '').slice(0, MAX_CONTEXT_LENGTH);
 
     if (!text.trim()) {
@@ -345,6 +382,175 @@ if (!window.__llmSidebarContentLoaded) {
       text,
       html
     };
+  }
+
+  function tryParseLinkedInComments(element) {
+    if (!window.location.hostname.includes('linkedin.com')) return null;
+
+    const isArticle = element.matches?.('article.comments-comment-entity, article[data-id^="urn:li:comment"]');
+    if (isArticle) {
+      const comment = parseOneLinkedInComment(element);
+      const replyArticles = element.querySelectorAll('article.comments-comment-entity--reply');
+      const replies = [];
+      for (const reply of replyArticles) {
+        replies.push(parseOneLinkedInComment(reply));
+      }
+      const lines = [formatLinkedInComment(comment)];
+      for (const r of replies) {
+        lines.push('  ' + formatLinkedInComment(r).replace(/\n/g, '\n  '));
+      }
+      return lines.join('\n\n').trim();
+    }
+
+    const commentArticles = element.querySelectorAll('article.comments-comment-entity, article[data-id^="urn:li:comment"]');
+    if (commentArticles.length === 0) {
+      return null;
+    }
+
+    const threads = [];
+    const processed = new Set();
+
+    for (const article of commentArticles) {
+      const id = article.getAttribute('data-id') || article.id || `__anon_${processed.size}`;
+      if (processed.has(id)) continue;
+      processed.add(id);
+
+      const isReply = article.classList.contains('comments-comment-entity--reply');
+      const comment = parseOneLinkedInComment(article);
+
+      if (isReply) {
+        const lastThread = threads[threads.length - 1];
+        if (lastThread) {
+          lastThread.replies.push(comment);
+        } else {
+          threads.push({comment, replies: []});
+        }
+      } else {
+        threads.push({comment, replies: []});
+      }
+    }
+
+    if (threads.length === 0) return null;
+
+    const lines = [];
+    for (const thread of threads) {
+      lines.push(formatLinkedInComment(thread.comment));
+      for (const reply of thread.replies) {
+        lines.push('  ' + formatLinkedInComment(reply).replace(/\n/g, '\n  '));
+      }
+      lines.push('');
+    }
+    return lines.join('\n').trim();
+  }
+
+  function parseOneLinkedInComment(article) {
+    const name = extractLinkedInField(article, [
+      '.comments-comment-meta__description-title',
+      'h3.comments-comment-meta__description'
+    ]);
+
+    const role = extractLinkedInField(article, [
+      '.comments-comment-meta__description-subtitle'
+    ]) || extractLinkedInAriaRole(article);
+
+    const text = extractLinkedInCommentText(article);
+
+    const likes = extractLinkedInLikes(article);
+
+    const time = extractLinkedInField(article, [
+      'time.comments-comment-meta__data'
+    ]);
+
+    const repliesCount = extractLinkedInField(article, [
+      '.comments-comment-social-bar__replies-count--cr'
+    ]);
+
+    const badge = extractLinkedInField(article, [
+      '.comments-comment-meta__badge'
+    ]);
+
+    const profileLink = (
+      article.querySelector('a.comments-comment-meta__description-container[href]') ||
+      article.querySelector('a.comments-comment-meta__image-link[href]')
+    )?.getAttribute('href') || '';
+
+    return {name, role, text, likes, time, repliesCount, badge, profileLink};
+  }
+
+  function extractLinkedInField(root, selectors) {
+    for (const sel of selectors) {
+      const el = root.querySelector(sel);
+      if (el) {
+        const val = (el.textContent || '').replace(/\s+/g, ' ').trim();
+        if (val) return val;
+      }
+    }
+    return '';
+  }
+
+  function extractLinkedInAriaRole(article) {
+    const link = article.querySelector('a.comments-comment-meta__description-container[aria-label]');
+    if (!link) return '';
+    const label = link.getAttribute('aria-label') || '';
+    const parts = label.split(/[•,]/).map(s => s.trim()).filter(Boolean);
+    return parts.length > 1 ? parts.slice(1).join(', ').replace(/^View:\s*/i, '') : '';
+  }
+
+  function extractLinkedInCommentText(article) {
+    const contentSection = article.querySelector('.comments-comment-entity__content');
+    if (!contentSection) return '';
+
+    const textEl = contentSection.querySelector('.update-components-text span[dir="ltr"]')
+      || contentSection.querySelector('.comments-comment-item__main-content')
+      || contentSection;
+
+    const clone = textEl.cloneNode(true);
+    clone.querySelectorAll('a').forEach(a => {
+      const mention = (a.textContent || '').trim();
+      if (mention) a.replaceWith(`@${mention}`);
+    });
+    clone.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+
+    return (clone.textContent || '')
+      .replace(/\u00A0/g, ' ')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/…more\s*$/i, '')
+      .replace(/\s+$/, '')
+      .trim();
+  }
+
+  function extractLinkedInLikes(article) {
+    const socialBar = article.closest('.comments-thread-item')
+      ?.parentElement?.closest('.comments-thread-item')
+      ?.querySelector('.comments-comment-social-bar--cr')
+      || article.parentElement?.querySelector('.comments-comment-social-bar--cr');
+
+    if (!socialBar) return '';
+
+    const countBtn = socialBar.querySelector('.comments-comment-social-bar__reactions-count--cr');
+    if (countBtn) {
+      const countSpan = countBtn.querySelector('span.v-align-middle');
+      if (countSpan) {
+        const val = (countSpan.textContent || '').trim();
+        if (val) return val;
+      }
+      const ariaLabel = countBtn.getAttribute('aria-label') || '';
+      const match = ariaLabel.match(/^(\d+)\s/);
+      if (match) return match[1];
+    }
+
+    return '0';
+  }
+
+  function formatLinkedInComment(c) {
+    const parts = [`${c.name || 'Unknown'}`];
+    if (c.badge) parts[0] += ` [${c.badge}]`;
+    if (c.role) parts.push(`Role: ${c.role}`);
+    if (c.time) parts.push(`Time: ${c.time}`);
+    if (c.text) parts.push(c.text);
+    if (c.likes && c.likes !== '0') parts.push(`Likes: ${c.likes}`);
+    return parts.join('\n');
   }
 
   async function copyPickedValue(value) {
