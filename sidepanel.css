@@ -98,6 +98,7 @@ body {
 }
 
 body {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -125,7 +126,7 @@ body {
 
 .toolbar-top {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
 }
@@ -278,6 +279,67 @@ body {
 
 .status-text.error {
   color: #e57373;
+}
+
+#reloadProviderBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 0;
+  background: var(--control-bg);
+  color: var(--text-main);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+
+#reloadProviderBtn:hover {
+  background: var(--control-hover);
+}
+
+#reloadProviderBtn:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+  outline: none;
+}
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  top: 0;
+  z-index: 5000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: Canvas;
+}
+
+.loading-overlay[hidden] {
+  display: none;
+}
+
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--surface-border);
+  border-top-color: var(--text-muted);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 #providerFrame {

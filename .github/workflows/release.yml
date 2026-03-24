@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if version changed
+        id: version
+        run: |
+          CURRENT=$(jq -r '.version' manifest.json)
+          PREVIOUS=$(git show HEAD~1:manifest.json 2>/dev/null | jq -r '.version' 2>/dev/null || echo "")
+
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "previous=$PREVIOUS" >> "$GITHUB_OUTPUT"
+
+          if [ "$CURRENT" != "$PREVIOUS" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Version changed: $PREVIOUS -> $CURRENT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Version unchanged: $CURRENT"
+          fi
+
+      - name: Build zip
+        if: steps.version.outputs.changed == 'true'
+        run: |
+          VERSION=${{ steps.version.outputs.current }}
+          mkdir -p dist
+
+          zip -r "dist/sidebarny-llm-${VERSION}.zip" \
+            manifest.json \
+            rules.json \
+            background.js \
+            sidepanel.html \
+            sidepanel.css \
+            sidepanel.js \
+            content.js \
+            chat-input-injector.js \
+            opensearch-dashboard-parser.js \
+            icons/ \
+            -x "*.DS_Store"
+
+      - name: Create release
+        if: steps.version.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.current }}
+          TAG="v${VERSION}"
+
+          gh release create "$TAG" \
+            "dist/sidebarny-llm-${VERSION}.zip" \
+            --title "SideBarny LLM ${TAG}" \
+            --generate-notes

@@ -10,6 +10,7 @@
     <div class="toolbar-shell">
       <div class="toolbar-top">
         <select id="providerSelect" aria-label="Провайдер"></select>
+        <button id="reloadProviderBtn" type="button" title="Перезавантажити провайдера">&#x21BB;</button>
         <a id="openExternalLink" href="#" target="_blank" rel="noopener noreferrer">Відкрити у вкладці</a>
       </div>
 
@@ -28,6 +29,11 @@
       <div id="statusText" class="status-text" role="status" aria-live="polite" hidden></div>
     </div>
   </header>
+
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+    <p class="loading-text">Завантаження провайдера…</p>
+  </div>
 
   <iframe
     id="providerFrame"

@@ -26,14 +26,19 @@ const PASTE_TIMEOUT_MS = 2000;
 const GET_URL_TIMEOUT_MS = 500;
 const AUTO_PASTE_PROVIDERS = new Set(PROVIDERS.map((p) => p.id));
 
+const IFRAME_LOAD_TIMEOUT_MS = 15000;
+
 let providerSelect = null;
 let providerFrame = null;
 let openExternalLink = null;
+let reloadProviderBtn = null;
 let pickTextBtn = null;
 let pickHtmlBtn = null;
 let cancelPickerBtn = null;
 let copyTooltip = null;
 let statusText = null;
+let loadingOverlay = null;
+let iframeLoadTimer = null;
 
 let isCaptureInProgress = false;
 let isElementPickerActive = false;
@@ -70,13 +75,17 @@ function init() {
   providerSelect = requireElement('providerSelect');
   providerFrame = requireElement('providerFrame');
   openExternalLink = requireElement('openExternalLink');
+  reloadProviderBtn = requireElement('reloadProviderBtn');
   pickTextBtn = requireElement('pickTextBtn');
   pickHtmlBtn = requireElement('pickHtmlBtn');
   cancelPickerBtn = requireElement('cancelPickerBtn');
   copyTooltip = requireElement('copyTooltip');
   statusText = requireElement('statusText');
+  loadingOverlay = requireElement('loadingOverlay');
 
   renderProviderOptions();
+
+  providerFrame.addEventListener('load', onIframeLoad);
 
   chrome.storage.local.get(SELECTED_PROVIDER_KEY, (result) => {
     const savedProviderId = result[SELECTED_PROVIDER_KEY];
@@ -87,6 +96,10 @@ function init() {
 
   providerSelect.addEventListener('change', () => {
     loadProvider(providerSelect.value);
+  });
+
+  reloadProviderBtn.addEventListener('click', () => {
+    reloadCurrentProvider();
   });
 
   pickTextBtn.addEventListener('click', () => {
@@ -126,11 +139,55 @@ function loadProvider(providerId) {
 
   chrome.storage.local.set({[SELECTED_PROVIDER_KEY]: provider.id});
   applyProviderTheme(provider.id);
+  showLoading();
   providerFrame.src = provider.url;
   providerFrame.title = `Чат — ${provider.name}`;
   openExternalLink.href = provider.url;
 
   setStatus('');
+}
+
+function reloadCurrentProvider() {
+  const provider = getProviderById(providerSelect?.value);
+  if (!provider) {
+    return;
+  }
+
+  showLoading();
+  providerFrame.src = 'about:blank';
+  setTimeout(() => {
+    providerFrame.src = provider.url;
+  }, 50);
+}
+
+function showLoading() {
+  if (iframeLoadTimer) {
+    clearTimeout(iframeLoadTimer);
+  }
+
+  loadingOverlay.hidden = false;
+
+  iframeLoadTimer = setTimeout(() => {
+    hideLoading();
+    setStatus('Провайдер завантажується повільно. Спробуй натиснути ↻ або відкрити у вкладці.', true);
+  }, IFRAME_LOAD_TIMEOUT_MS);
+}
+
+function hideLoading() {
+  if (iframeLoadTimer) {
+    clearTimeout(iframeLoadTimer);
+    iframeLoadTimer = null;
+  }
+
+  loadingOverlay.hidden = true;
+}
+
+function onIframeLoad() {
+  if (providerFrame.src === 'about:blank') {
+    return;
+  }
+
+  hideLoading();
 }
 
 function applyProviderTheme(providerId) {
