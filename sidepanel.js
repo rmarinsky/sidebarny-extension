@@ -147,16 +147,23 @@ function loadProvider(providerId) {
   setStatus('');
 }
 
+let isReloading = false;
+
 function reloadCurrentProvider() {
+  if (isReloading) {
+    return;
+  }
   const provider = getProviderById(providerSelect?.value);
   if (!provider) {
     return;
   }
 
+  isReloading = true;
   showLoading();
   providerFrame.src = 'about:blank';
   setTimeout(() => {
     providerFrame.src = provider.url;
+    isReloading = false;
   }, 50);
 }
 

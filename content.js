@@ -247,9 +247,10 @@ if (!window.__llmSidebarContentLoaded) {
 
   function buildPickerPayload(context, outputType, copyResult) {
     const key = outputType === 'html' ? 'html' : 'text';
+    const value = context[key] || context.text;
 
     return {
-      [key]: context[key],
+      [key]: value,
       copied: Boolean(copyResult?.success),
       copyMethod: copyResult?.method || null,
       copyError: copyResult?.error || null
@@ -359,7 +360,7 @@ if (!window.__llmSidebarContentLoaded) {
         selector: buildCssSelector(element),
         tagName: element.tagName.toLowerCase(),
         text: linkedInText.slice(0, MAX_CONTEXT_LENGTH),
-        html: ''
+        html: trimToLimit(element.outerHTML || '', MAX_HTML_LENGTH)
       };
     }
 
@@ -389,7 +390,7 @@ if (!window.__llmSidebarContentLoaded) {
     const isArticle = element.matches?.('article.comments-comment-entity, article[data-id^="urn:li:comment"]');
     if (isArticle) {
       const comment = parseOneLinkedInComment(element);
-      const replyArticles = element.querySelectorAll('article.comments-comment-entity--reply, article[data-id^="urn:li:comment"]');
+      const replyArticles = element.querySelectorAll('article.comments-comment-entity--reply');
       const replies = [];
       for (const reply of replyArticles) {
         replies.push(parseOneLinkedInComment(reply));
@@ -410,7 +411,7 @@ if (!window.__llmSidebarContentLoaded) {
     const processed = new Set();
 
     for (const article of commentArticles) {
-      const id = article.getAttribute('data-id') || article.id;
+      const id = article.getAttribute('data-id') || article.id || `__anon_${processed.size}`;
       if (processed.has(id)) continue;
       processed.add(id);
 
@@ -546,7 +547,9 @@ if (!window.__llmSidebarContentLoaded) {
     const parts = [`${c.name || 'Unknown'}`];
     if (c.badge) parts[0] += ` [${c.badge}]`;
     if (c.role) parts.push(`Role: ${c.role}`);
+    if (c.time) parts.push(`Time: ${c.time}`);
     if (c.text) parts.push(c.text);
+    if (c.likes && c.likes !== '0') parts.push(`Likes: ${c.likes}`);
     return parts.join('\n');
   }
 
